@@ -9,6 +9,7 @@ active_file="$runtime_dir/active"
 log_file="$STATE_DIR/events.log"
 pending_file="$STATE_DIR/pending-modes.txt"
 pending_lock_file="$STATE_DIR/pending-modes.lock"
+gpu_clock_helper=/usr/local/lib/sunshine-virtual-display/gpu-clock
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
@@ -30,4 +31,10 @@ start_inhibitor() {
 stop_inhibitor() {
     systemctl --user stop sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
     systemctl --user reset-failed sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
+}
+lock_gpu_clock() {
+    sudo -n "$gpu_clock_helper" lock
+}
+reset_gpu_clock() {
+    sudo -n "$gpu_clock_helper" reset
 }

@@ -16,6 +16,11 @@ if ((count > 1)); then
 fi
 printf '0\n' > "$count_file"
 stop_inhibitor
+if reset_gpu_clock >/dev/null 2>&1; then
+    log_event 'GPU graphics clock reset'
+else
+    log_event 'GPU graphics clock reset failed'
+fi
 if [[ -s "$layout_file" ]]; then
     current="$(kscreen-doctor -j)"
     mapfile -t available < <(jq -r '.outputs[].name' <<< "$current")

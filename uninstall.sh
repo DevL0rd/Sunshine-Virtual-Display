@@ -35,6 +35,8 @@ for item in \
     "$user_config" \
     "$original_sunshine" \
     /usr/local/lib/sunshine-virtual-display/rebuild-edid \
+    /usr/local/lib/sunshine-virtual-display/gpu-clock \
+    /etc/sudoers.d/sunshine-virtual-display-gpu-clock \
     /etc/sunshine-virtual-display/config \
     /usr/lib/firmware/edid/sunshine-virtual-display.bin \
     /etc/limine-entry-tool.d/91-sunshine-virtual-display.conf \
@@ -109,6 +111,8 @@ sudo rm -f /etc/mkinitcpio.conf.d/91-sunshine-virtual-display.conf
 sudo rm -f /usr/lib/firmware/edid/sunshine-virtual-display.bin
 sudo rm -f /usr/local/lib/sunshine-virtual-display/generate-edid.py
 sudo rm -f /usr/local/lib/sunshine-virtual-display/rebuild-edid
+sudo rm -f /usr/local/lib/sunshine-virtual-display/gpu-clock
+sudo rm -f /etc/sudoers.d/sunshine-virtual-display-gpu-clock
 sudo rm -f /etc/sunshine-virtual-display/config /etc/sunshine-virtual-display/modes.txt
 sudo rm -f /var/lib/sunshine-virtual-display/modes.txt /var/lib/sunshine-virtual-display/sunshine-virtual-display.bin.new /var/lib/sunshine-virtual-display/edid-decode.txt
 sudo rmdir /usr/local/lib/sunshine-virtual-display /etc/sunshine-virtual-display /var/lib/sunshine-virtual-display 2>/dev/null || true

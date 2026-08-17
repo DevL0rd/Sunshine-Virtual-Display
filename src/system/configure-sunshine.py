@@ -5,7 +5,7 @@ import pathlib
 import re
 
 
-managed = ["capture", "encoder", "output_name", "global_prep_cmd"]
+managed = ["capture", "encoder", "nvenc_twopass", "output_name", "global_prep_cmd"]
 
 
 def key_for(line):
@@ -42,11 +42,22 @@ if args.action == "install":
                     originals[key] = line
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(json.dumps({"config_existed": config.exists(), "originals": originals}, indent=2) + "\n", encoding="utf-8")
+    else:
+        saved = json.loads(state.read_text(encoding="utf-8"))
+        originals = saved.setdefault("originals", {})
+        changed = False
+        for managed_key in managed:
+            if managed_key not in originals:
+                originals[managed_key] = next((line for line in lines if key_for(line) == managed_key), None)
+                changed = True
+        if changed:
+            state.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
     lines = [line for line in lines if key_for(line) not in managed]
     home = args.home.rstrip("/")
     lines.extend([
         "capture = kms",
         "encoder = nvenc",
+        "nvenc_twopass = disabled",
         f"output_name = {args.virtual_output}",
         f'global_prep_cmd = [{{"do":"{home}/.local/bin/sunshine-vdisplay-up","undo":"{home}/.local/bin/sunshine-vdisplay-down"}}]',
     ])
