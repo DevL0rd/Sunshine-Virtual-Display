@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$HOME/.local/bin/sunshine-vdisplay-common"
+exec 9>"$lock_file"
+flock -x 9
+count=1
+if [[ -s "$count_file" ]]; then
+    read -r count < "$count_file"
+    [[ "$count" =~ ^[0-9]+$ ]] || count=1
+fi
+if ((count > 1)); then
+    count=$((count - 1))
+    printf '%s\n' "$count" > "$count_file"
+    log_event "remaining session count=$count"
+    exit 0
+fi
+printf '0\n' > "$count_file"
+stop_inhibitor
+if [[ -s "$layout_file" ]]; then
+    current="$(kscreen-doctor -j)"
+    mapfile -t available < <(jq -r '.outputs[].name' <<< "$current")
+    mapfile -t restore_enabled < <(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[] | select(.connected == true and .enabled == true and .name != $virtual) | .name' "$layout_file")
+    for output in "${restore_enabled[@]}"; do
+        if printf '%s\n' "${available[@]}" | grep -Fxq "$output"; then
+            kscreen-doctor "output.$output.enable" || true
+        fi
+    done
+    if output_exists "$VIRTUAL_OUTPUT"; then
+        kscreen-doctor "output.$VIRTUAL_OUTPUT.disable" || true
+    fi
+    commands=()
+    for output in "${restore_enabled[@]}"; do
+        if ! printf '%s\n' "${available[@]}" | grep -Fxq "$output"; then
+            continue
+        fi
+        mode="$(jq -r --arg name "$output" '.outputs[] | select(.name == $name) | .currentModeId' "$layout_file")"
+        x="$(jq -r --arg name "$output" '.outputs[] | select(.name == $name) | .pos.x' "$layout_file")"
+        y="$(jq -r --arg name "$output" '.outputs[] | select(.name == $name) | .pos.y' "$layout_file")"
+        scale="$(jq -r --arg name "$output" '.outputs[] | select(.name == $name) | .scale' "$layout_file")"
+        rotation="$(jq -r --arg name "$output" '.outputs[] | select(.name == $name) | .rotation' "$layout_file")"
+        priority="$(jq -r --arg name "$output" '.outputs[] | select(.name == $name) | .priority' "$layout_file")"
+        commands+=("output.$output.enable" "output.$output.mode.$mode" "output.$output.position.$x,$y" "output.$output.scale.$scale" "output.$output.rotation.$rotation" "output.$output.priority.$priority")
+    done
+    if ((${#commands[@]})); then
+        kscreen-doctor "${commands[@]}" || true
+    fi
+fi
+current="$(kscreen-doctor -j)"
+enabled_count="$(jq --arg virtual "$VIRTUAL_OUTPUT" '[.outputs[] | select(.connected == true and .enabled == true and .name != $virtual)] | length' <<< "$current")"
+if ((enabled_count == 0)); then
+    fallback="$(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[] | select(.connected == true and .name != $virtual) | .name' <<< "$current" | head -n 1)"
+    if [[ -n "$fallback" ]]; then
+        kscreen-doctor "output.$fallback.enable" "output.$fallback.priority.1" || true
+    fi
+fi
+rm -f "$active_file" "$layout_file"
+log_event 'disconnected and restored physical layout'
+sleep 1

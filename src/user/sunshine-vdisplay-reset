@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$HOME/.local/bin/sunshine-vdisplay-common"
+exec 9>"$lock_file"
+flock -x 9
+stop_inhibitor
+for attempt in {1..30}; do
+    data="$(kscreen-doctor -j 2>/dev/null || true)"
+    [[ -n "$data" ]] && break
+    sleep 1
+done
+if output_exists "$VIRTUAL_OUTPUT"; then
+    physical_count="$(jq --arg virtual "$VIRTUAL_OUTPUT" '[.outputs[] | select(.connected == true and .name != $virtual)] | length' <<< "$data")"
+    if ((physical_count > 0)); then
+        kscreen-doctor "output.$VIRTUAL_OUTPUT.disable" || true
+    fi
+fi
+data="$(kscreen-doctor -j)"
+enabled_count="$(jq --arg virtual "$VIRTUAL_OUTPUT" '[.outputs[] | select(.connected == true and .enabled == true and .name != $virtual)] | length' <<< "$data")"
+if ((enabled_count == 0)); then
+    fallback="$(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[] | select(.connected == true and .name != $virtual) | .name' <<< "$data" | head -n 1)"
+    if [[ -n "$fallback" ]]; then
+        kscreen-doctor "output.$fallback.enable" "output.$fallback.priority.1" || true
+    fi
+fi
+rm -f "$active_file" "$layout_file" "$count_file"
+log_event 'startup reset completed'

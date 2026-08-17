@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source /etc/sunshine-virtual-display/config
+state_dir="$TARGET_HOME/.local/state/sunshine-virtual-display"
+config_dir=/etc/sunshine-virtual-display
+work_dir=/var/lib/sunshine-virtual-display
+firmware=/usr/lib/firmware/edid/sunshine-virtual-display.bin
+pending="$state_dir/pending-modes.txt"
+pending_lock="$state_dir/pending-modes.lock"
+install -d -m 755 "$work_dir" /usr/lib/firmware/edid
+touch "$pending" "$pending_lock"
+chown "$TARGET_USER:$TARGET_GROUP" "$pending" "$pending_lock"
+exec 8>"$pending_lock"
+flock -x 8
+mapfile -t additions < <(sed -nE '/^[0-9]{3,4}x[0-9]{3,4}@[0-9]{2,3}([.][0-9]+)?$/p' "$pending" | sort -u)
+if ((${#additions[@]} == 0)); then
+    exit 0
+fi
+combined="$work_dir/modes.txt"
+temporary="$work_dir/sunshine-virtual-display.bin.new"
+{ cat "$config_dir/modes.txt"; printf '%s\n' "${additions[@]}"; } | awk 'NF && !seen[$0]++' > "$combined"
+/usr/local/lib/sunshine-virtual-display/generate-edid.py "$combined" "$temporary"
+edid-decode --check "$temporary" > "$work_dir/edid-decode.txt"
+install -m 644 "$combined" "$config_dir/modes.txt"
+install -m 644 "$temporary" "$firmware"
+: > "$pending"
+chown "$TARGET_USER:$TARGET_GROUP" "$pending"
+flock -u 8
+if command -v limine-mkinitcpio >/dev/null 2>&1; then
+    limine-mkinitcpio
+else
+    /usr/bin/mkinitcpio -P
+fi
+touch "$state_dir/reboot-required"
+chown "$TARGET_USER:$TARGET_GROUP" "$state_dir/reboot-required"

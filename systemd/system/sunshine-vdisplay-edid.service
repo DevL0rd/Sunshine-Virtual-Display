@@ -1,0 +1,8 @@
+[Unit]
+Description=Rebuild Sunshine virtual display EDID
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/sunshine-virtual-display/rebuild-edid
+Nice=10
+IOSchedulingClass=idle

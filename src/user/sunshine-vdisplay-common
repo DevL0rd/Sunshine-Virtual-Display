@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$HOME/.config/sunshine-virtual-display/config"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sunshine-virtual-display"
+layout_file="$runtime_dir/layout.json"
+count_file="$runtime_dir/session-count"
+lock_file="$runtime_dir/lock"
+active_file="$runtime_dir/active"
+log_file="$STATE_DIR/events.log"
+pending_file="$STATE_DIR/pending-modes.txt"
+pending_lock_file="$STATE_DIR/pending-modes.lock"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+mkdir -p "$runtime_dir" "$STATE_DIR"
+if [[ ! -e "$pending_file" ]]; then
+    touch "$pending_file"
+fi
+log_event() {
+    printf '%s %s\n' "$(date -Is)" "$*" >> "$log_file"
+}
+output_exists() {
+    kscreen-doctor -j | jq -e --arg name "$1" '.outputs[] | select(.name == $name)' >/dev/null
+}
+start_inhibitor() {
+    systemctl --user stop sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
+    systemctl --user reset-failed sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
+    systemd-run --user --collect --unit=sunshine-vdisplay-inhibit --description='Sunshine virtual display session inhibitor' kde-inhibit --power --screenSaver sleep infinity >/dev/null
+}
+stop_inhibitor() {
+    systemctl --user stop sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
+    systemctl --user reset-failed sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
+}

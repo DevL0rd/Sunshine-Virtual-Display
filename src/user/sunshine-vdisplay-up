@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$HOME/.local/bin/sunshine-vdisplay-common"
+width="${SUNSHINE_CLIENT_WIDTH:-1920}"
+height="${SUNSHINE_CLIENT_HEIGHT:-1080}"
+refresh="${SUNSHINE_CLIENT_FPS:-60}"
+[[ "$width" =~ ^[0-9]{3,4}$ && "$height" =~ ^[0-9]{3,4}$ && "$refresh" =~ ^[0-9]{2,3}([.][0-9]+)?$ ]]
+exec 9>"$lock_file"
+flock -x 9
+count=0
+if [[ -s "$count_file" ]]; then
+    read -r count < "$count_file"
+    [[ "$count" =~ ^[0-9]+$ ]] || count=0
+fi
+count=$((count + 1))
+printf '%s\n' "$count" > "$count_file"
+if ((count > 1)); then
+    log_event "additional session count=$count"
+    exit 0
+fi
+for attempt in {1..20}; do
+    output_exists "$VIRTUAL_OUTPUT" && break
+    sleep 1
+done
+output_exists "$VIRTUAL_OUTPUT"
+kscreen-doctor -j > "$layout_file"
+mapfile -t selection < <("$HOME/.local/bin/sunshine-vdisplay-pick-mode" "$VIRTUAL_OUTPUT" "$width" "$height" "$refresh")
+mode_id="${selection[0]}"
+match="${selection[1]}"
+selected="${selection[2]}"
+if [[ "$match" != EXACT ]]; then
+    request="${width}x${height}@${refresh}"
+    exec 8>"$pending_lock_file"
+    flock -x 8
+    if ! grep -Fxq "$request" "$pending_file"; then
+        printf '%s\n' "$request" >> "$pending_file"
+    fi
+    flock -u 8
+fi
+start_inhibitor
+kscreen-doctor "output.$VIRTUAL_OUTPUT.enable" "output.$VIRTUAL_OUTPUT.mode.$mode_id" "output.$VIRTUAL_OUTPUT.priority.1" "output.$VIRTUAL_OUTPUT.position.0,0"
+mapfile -t physical_outputs < <(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[] | select(.connected == true and .enabled == true and .name != $virtual) | .name' "$layout_file")
+for output in "${physical_outputs[@]}"; do
+    kscreen-doctor "output.$output.disable"
+done
+touch "$active_file"
+log_event "connected request=${width}x${height}@${refresh} selected=$selected match=$match disabled=${physical_outputs[*]:-none}"
+sleep 1
