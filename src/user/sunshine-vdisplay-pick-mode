@@ -26,16 +26,14 @@ for mode in output.get("modes", []):
     if not candidate_width or not candidate_height:
         continue
     same_resolution = candidate_width == width and candidate_height == height
-    if same_resolution and abs(candidate_refresh - refresh) < 1.0:
-        best = mode
-        exact = True
-        break
+    refresh_delta = abs(candidate_refresh - refresh)
     aspect_delta = abs(candidate_width / candidate_height - target_aspect)
     area_delta = abs(candidate_width * candidate_height - target_area) / target_area
-    score = (0 if same_resolution else 1, aspect_delta, area_delta, abs(candidate_refresh - refresh))
+    score = (0 if same_resolution else 1, aspect_delta, area_delta, refresh_delta)
     if best_score is None or score < best_score:
         best = mode
         best_score = score
+        exact = same_resolution and refresh_delta < 0.01
 if best is None:
     raise SystemExit(3)
 print(best["id"])
