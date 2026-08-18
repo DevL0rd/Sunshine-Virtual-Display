@@ -32,7 +32,6 @@ fail() {
 command -v sudo >/dev/null 2>&1 || fail 'sudo is required'
 command -v pacman >/dev/null 2>&1 || fail 'This installer currently supports Arch/CachyOS with pacman'
 command -v sunshine >/dev/null 2>&1 || fail 'Sunshine must already be installed; this project does not install or update it'
-command -v nvidia-smi >/dev/null 2>&1 || fail 'nvidia-smi is required for the streaming graphics clock lock'
 command -v limine-mkinitcpio >/dev/null 2>&1 || fail 'limine-mkinitcpio-hook is required'
 [[ -f /etc/default/limine ]] || fail 'Limine configuration was not found at /etc/default/limine'
 packages=()
@@ -92,7 +91,7 @@ if ((${#packages[@]})); then
     say "Missing packages: ${packages[*]}"
 fi
 if ((dry_run)); then
-    printf '\nDry run complete. Installation would update the managed virtual-display files, install the 3105 MHz streaming graphics-clock lifecycle, rebuild both Limine initramfs entries, and preserve existing custom modes. Sunshine itself would not be installed or updated.\n'
+    printf '\nDry run complete. Installation would update the managed virtual-display files, rebuild both Limine initramfs entries, and preserve existing custom modes. Sunshine itself would not be installed or updated.\n'
     exit 0
 fi
 sudo -v
@@ -141,17 +140,13 @@ python3 "$repo_dir/src/system/configure-sunshine.py" install "$sunshine_config" 
 install -d -m 755 "$target_home/.config/systemd/user/$sunshine_service.d"
 install -m 644 "$repo_dir/systemd/user/sunshine-virtual-display-init.service" "$target_home/.config/systemd/user/sunshine-virtual-display-init.service"
 install -m 644 "$repo_dir/systemd/user/sunshine-service-dropin.conf" "$target_home/.config/systemd/user/$sunshine_service.d/virtual-display.conf"
-printf 'TARGET_USER=%q\nTARGET_GROUP=%q\nTARGET_HOME=%q\nVIRTUAL_OUTPUT=%q\nGPU_INDEX=0\nGPU_GRAPHICS_CLOCK=3105\n' "$target_user" "$target_group" "$target_home" "$requested_output" > "$work_dir/system-config"
-printf '%s ALL=(root) NOPASSWD: /usr/local/lib/sunshine-virtual-display/gpu-clock lock, /usr/local/lib/sunshine-virtual-display/gpu-clock reset\n' "$target_user" > "$work_dir/sudoers"
-sudo visudo -cf "$work_dir/sudoers" >/dev/null
+printf 'TARGET_USER=%q\nTARGET_GROUP=%q\nTARGET_HOME=%q\nVIRTUAL_OUTPUT=%q\n' "$target_user" "$target_group" "$target_home" "$requested_output" > "$work_dir/system-config"
 sed "s|@STATE_DIR@|$state_dir|g" "$repo_dir/systemd/system/sunshine-vdisplay-edid.path.in" > "$work_dir/sunshine-vdisplay-edid.path"
 printf 'KERNEL_CMDLINE[default]+=" drm.edid_firmware=%s:edid/sunshine-virtual-display.bin video=%s:e"\n' "$requested_output" "$requested_output" > "$work_dir/limine-dropin"
 printf 'FILES+=(/usr/lib/firmware/edid/sunshine-virtual-display.bin)\n' > "$work_dir/mkinitcpio-dropin"
-sudo install -d -m 755 /usr/local/lib/sunshine-virtual-display /etc/sunshine-virtual-display /usr/lib/firmware/edid /var/lib/sunshine-virtual-display /etc/limine-entry-tool.d /etc/mkinitcpio.conf.d /etc/sudoers.d
+sudo install -d -m 755 /usr/local/lib/sunshine-virtual-display /etc/sunshine-virtual-display /usr/lib/firmware/edid /var/lib/sunshine-virtual-display /etc/limine-entry-tool.d /etc/mkinitcpio.conf.d
 sudo install -m 755 "$repo_dir/src/system/generate-edid.py" /usr/local/lib/sunshine-virtual-display/generate-edid.py
 sudo install -m 755 "$repo_dir/src/system/rebuild-edid" /usr/local/lib/sunshine-virtual-display/rebuild-edid
-sudo install -m 755 "$repo_dir/src/system/gpu-clock" /usr/local/lib/sunshine-virtual-display/gpu-clock
-sudo install -m 440 "$work_dir/sudoers" /etc/sudoers.d/sunshine-virtual-display-gpu-clock
 sudo install -m 644 "$work_dir/system-config" /etc/sunshine-virtual-display/config
 sudo install -m 644 "$work_dir/modes.txt" /etc/sunshine-virtual-display/modes.txt
 sudo install -m 644 "$work_dir/sunshine-virtual-display.bin" "$firmware"

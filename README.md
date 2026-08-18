@@ -14,7 +14,6 @@ It is designed for CachyOS and Arch Linux systems using NVIDIA, Plasma 6, Sunshi
 - Keeps a multi-client reference count and inhibits sleep while streaming.
 - Queues a previously unknown client mode, rebuilds the EDID safely, and records that a reboot is required before that exact mode can be used.
 - Creates timestamped configuration backups and, when available, a Snapper snapshot before install, update, or uninstall.
-- Locks the NVIDIA graphics clock to 3105 MHz for an active streaming session and removes the lock when the final session ends or startup recovery runs.
 
 ## Important limits
 
@@ -33,7 +32,7 @@ HDR and VRR are not configured by this project. Changing between landscape and p
 - Limine with `limine-mkinitcpio-hook`
 - `sudo` access
 
-The installer adds missing runtime packages from the normal repositories: `python`, `jq`, `libkscreen`, `kde-cli-tools`, `v4l-utils`, and `util-linux`. It requires the NVIDIA driver utilities for `nvidia-smi`. It does not install, update, replace, or uninstall Sunshine; your existing Sunshine package remains under its current package manager.
+The installer adds missing runtime packages from the normal repositories: `python`, `jq`, `libkscreen`, `kde-cli-tools`, `v4l-utils`, and `util-linux`. It does not install, update, replace, or uninstall Sunshine; your existing Sunshine package remains under its current package manager.
 
 ## Install
 
@@ -100,8 +99,6 @@ sudo journalctl -u sunshine-vdisplay-edid.service
 Installer backups live under `~/.local/state/sunshine-virtual-display/backups`. Snapper snapshots are also created by default when the root Snapper configuration exists. Snapshot boot entries are intentionally not modified by this project, so a pre-install snapshot remains a recovery path if the forced EDID prevents a normal boot.
 
 ## Security model
-
-The desktop user receives passwordless permission for only two exact root-owned helper invocations: applying the configured NVIDIA graphics clock and removing that lock. The helper accepts no arbitrary command or clock value from the unprivileged caller.
 
 The user session may only submit strings matching the restricted mode syntax. The root rebuild service validates every request again, regenerates the complete EDID, verifies it with `edid-decode`, and only then replaces the firmware file and rebuilds the initramfs. No arbitrary user command or path is accepted by the privileged service.
 

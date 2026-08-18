@@ -9,7 +9,7 @@ active_file="$runtime_dir/active"
 log_file="$STATE_DIR/events.log"
 pending_file="$STATE_DIR/pending-modes.txt"
 pending_lock_file="$STATE_DIR/pending-modes.lock"
-gpu_clock_helper=/usr/local/lib/sunshine-virtual-display/gpu-clock
+TOUCH_DEVICE_NAME="libvirtualhid Touchscreen"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
@@ -32,9 +32,16 @@ stop_inhibitor() {
     systemctl --user stop sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
     systemctl --user reset-failed sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
 }
-lock_gpu_clock() {
-    sudo -n "$gpu_clock_helper" lock
-}
-reset_gpu_clock() {
-    sudo -n "$gpu_clock_helper" reset
+bind_touchscreen_output() {
+    local uuid ids vendor product
+    uuid="$(kscreen-doctor -o 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk -v name="$VIRTUAL_OUTPUT" '$1 == "Output:" && $3 == name {print $4; exit}')"
+    [[ -n "$uuid" ]] || return 1
+    ids="$(awk -v want="$TOUCH_DEVICE_NAME" '/^I: /{info=$0} $0 ~ "^N: Name=\"" want "\"$" {print info; exit}' /proc/bus/input/devices)"
+    [[ -n "$ids" ]] || return 1
+    vendor="$(sed -n 's/.*Vendor=\([0-9a-fA-F]*\).*/\1/p' <<< "$ids")"
+    product="$(sed -n 's/.*Product=\([0-9a-fA-F]*\).*/\1/p' <<< "$ids")"
+    [[ -n "$vendor" && -n "$product" ]] || return 1
+    kwriteconfig6 --file kcminputrc --group Libinput --group "$((16#$vendor))" --group "$((16#$product))" --group "$TOUCH_DEVICE_NAME" --key OutputUuid "$uuid"
+    busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure >/dev/null 2>&1 || true
+    printf '%s' "$uuid"
 }

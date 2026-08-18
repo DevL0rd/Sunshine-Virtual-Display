@@ -4,11 +4,6 @@ source "$HOME/.local/bin/sunshine-vdisplay-common"
 exec 9>"$lock_file"
 flock -x 9
 stop_inhibitor
-if reset_gpu_clock >/dev/null 2>&1; then
-    log_event 'GPU graphics clock reset'
-else
-    log_event 'GPU graphics clock reset failed'
-fi
 for attempt in {1..30}; do
     data="$(kscreen-doctor -j 2>/dev/null || true)"
     [[ -n "$data" ]] && break

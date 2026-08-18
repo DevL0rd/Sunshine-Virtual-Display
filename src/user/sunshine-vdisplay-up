@@ -23,19 +23,12 @@ for attempt in {1..20}; do
     sleep 1
 done
 output_exists "$VIRTUAL_OUTPUT"
-gpu_clock_locked=0
 cleanup_failed_start() {
     status=$?
-    if ((gpu_clock_locked)); then
-        reset_gpu_clock >/dev/null 2>&1 || true
-    fi
     printf '0\n' > "$count_file"
     exit "$status"
 }
 trap cleanup_failed_start ERR
-lock_gpu_clock
-gpu_clock_locked=1
-log_event 'GPU graphics clock locked'
 kscreen-doctor -j > "$layout_file"
 mapfile -t selection < <("$HOME/.local/bin/sunshine-vdisplay-pick-mode" "$VIRTUAL_OUTPUT" "$width" "$height" "$refresh")
 mode_id="${selection[0]}"
@@ -56,6 +49,11 @@ mapfile -t physical_outputs < <(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[
 for output in "${physical_outputs[@]}"; do
     kscreen-doctor "output.$output.disable"
 done
+if touch_uuid="$(bind_touchscreen_output 2>/dev/null)"; then
+    log_event "touchscreen bound to $VIRTUAL_OUTPUT uuid=$touch_uuid"
+else
+    log_event 'touchscreen bind skipped'
+fi
 touch "$active_file"
 trap - ERR
 log_event "connected request=${width}x${height}@${refresh} selected=$selected match=$match disabled=${physical_outputs[*]:-none}"

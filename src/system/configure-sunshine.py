@@ -5,7 +5,7 @@ import pathlib
 import re
 
 
-managed = ["capture", "encoder", "nvenc_twopass", "output_name", "global_prep_cmd"]
+managed = ["capture", "encoder", "nvenc_twopass", "native_pen_touch", "output_name", "global_prep_cmd"]
 
 
 def key_for(line):
@@ -58,6 +58,7 @@ if args.action == "install":
         "capture = kms",
         "encoder = nvenc",
         "nvenc_twopass = disabled",
+        "native_pen_touch = enabled",
         f"output_name = {args.virtual_output}",
         f'global_prep_cmd = [{{"do":"{home}/.local/bin/sunshine-vdisplay-up","undo":"{home}/.local/bin/sunshine-vdisplay-down"}}]',
     ])
