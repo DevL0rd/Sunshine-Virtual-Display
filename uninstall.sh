@@ -95,6 +95,7 @@ if [[ -n "$sunshine_service" ]]; then
     rmdir "$target_home/.config/systemd/user/$sunshine_service.d" 2>/dev/null || true
 fi
 rm -f "$target_home/.config/systemd/user/sunshine-virtual-display-init.service"
+rm -f "$target_home/.local/bin/sunshine-vdisplay-bind-touchscreen"
 rm -f "$target_home/.local/bin/sunshine-vdisplay-common"
 rm -f "$target_home/.local/bin/sunshine-vdisplay-down"
 rm -f "$target_home/.local/bin/sunshine-vdisplay-pick-mode"

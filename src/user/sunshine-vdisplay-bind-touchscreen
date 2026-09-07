@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$HOME/.local/bin/sunshine-vdisplay-common"
+for attempt in {1..50}; do
+    if touch_uuid="$(bind_touchscreen_output 2>/dev/null)"; then
+        log_event "touchscreen bound to $VIRTUAL_OUTPUT uuid=$touch_uuid"
+        exit 0
+    fi
+    sleep 0.2
+done
+log_event 'touchscreen binding timed out'
+exit 1

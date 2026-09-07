@@ -10,6 +10,7 @@ It is designed for CachyOS and Arch Linux systems using NVIDIA, Plasma 6, Sunshi
 - Configures Sunshine for KMS capture, single-pass NVENC encoding, the virtual output, and automatic session hooks.
 - Selects the closest advertised mode from `SUNSHINE_CLIENT_WIDTH`, `SUNSHINE_CLIENT_HEIGHT`, and `SUNSHINE_CLIENT_FPS` when a stream starts.
 - Saves the live KScreen layout, enables only the virtual display during the stream, and restores the prior physical layout afterward.
+- Waits for Sunshine's virtual touchscreen and maps it to the active virtual display through KWin.
 - Handles changing docks and monitors generically instead of naming a particular laptop panel or external display.
 - Keeps a multi-client reference count and inhibits sleep while streaming.
 - Queues a previously unknown client mode, rebuilds the EDID safely, and records that a reboot is required before that exact mode can be used.

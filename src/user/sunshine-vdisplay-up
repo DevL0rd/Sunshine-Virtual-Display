@@ -49,11 +49,7 @@ mapfile -t physical_outputs < <(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[
 for output in "${physical_outputs[@]}"; do
     kscreen-doctor "output.$output.disable"
 done
-if touch_uuid="$(bind_touchscreen_output 2>/dev/null)"; then
-    log_event "touchscreen bound to $VIRTUAL_OUTPUT uuid=$touch_uuid"
-else
-    log_event 'touchscreen bind skipped'
-fi
+start_touchscreen_binding
 touch "$active_file"
 trap - ERR
 log_event "connected request=${width}x${height}@${refresh} selected=$selected match=$match disabled=${physical_outputs[*]:-none}"

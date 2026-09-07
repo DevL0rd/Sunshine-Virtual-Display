@@ -15,6 +15,7 @@ if ((count > 1)); then
     exit 0
 fi
 printf '0\n' > "$count_file"
+stop_touchscreen_binding
 stop_inhibitor
 if [[ -s "$layout_file" ]]; then
     current="$(kscreen-doctor -j)"

@@ -32,8 +32,15 @@ stop_inhibitor() {
     systemctl --user stop sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
     systemctl --user reset-failed sunshine-vdisplay-inhibit.service >/dev/null 2>&1 || true
 }
+start_touchscreen_binding() {
+    stop_touchscreen_binding
+    systemd-run --user --collect --unit="sunshine-vdisplay-touch-bind-$BASHPID" "$HOME/.local/bin/sunshine-vdisplay-bind-touchscreen" >/dev/null
+}
+stop_touchscreen_binding() {
+    systemctl --user stop 'sunshine-vdisplay-touch-bind-*.service' >/dev/null 2>&1 || true
+}
 bind_touchscreen_output() {
-    local uuid ids vendor product
+    local uuid ids vendor product event device_path
     uuid="$(kscreen-doctor -o 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk -v name="$VIRTUAL_OUTPUT" '$1 == "Output:" && $3 == name {print $4; exit}')"
     [[ -n "$uuid" ]] || return 1
     ids="$(awk -v want="$TOUCH_DEVICE_NAME" '/^I: /{info=$0} $0 ~ "^N: Name=\"" want "\"$" {print info; exit}' /proc/bus/input/devices)"
@@ -41,7 +48,11 @@ bind_touchscreen_output() {
     vendor="$(sed -n 's/.*Vendor=\([0-9a-fA-F]*\).*/\1/p' <<< "$ids")"
     product="$(sed -n 's/.*Product=\([0-9a-fA-F]*\).*/\1/p' <<< "$ids")"
     [[ -n "$vendor" && -n "$product" ]] || return 1
+    event="$(awk -v want="$TOUCH_DEVICE_NAME" '$0 ~ "^N: Name=\"" want "\"$" {found=1; next} found && /^H: Handlers=/ {for (field=2; field<=NF; field++) {value=$field; sub(/^Handlers=/, "", value); if (value ~ /^event[0-9]+$/) {print value; exit}}}' /proc/bus/input/devices)"
+    [[ -n "$event" ]] || return 1
+    device_path="/org/kde/KWin/InputDevice/$event"
     kwriteconfig6 --file kcminputrc --group Libinput --group "$((16#$vendor))" --group "$((16#$product))" --group "$TOUCH_DEVICE_NAME" --key OutputUuid "$uuid"
+    busctl --user set-property org.kde.KWin "$device_path" org.kde.KWin.InputDevice outputName s "$VIRTUAL_OUTPUT" >/dev/null 2>&1 || return 1
     busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure >/dev/null 2>&1 || true
     printf '%s' "$uuid"
 }

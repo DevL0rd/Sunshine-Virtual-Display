@@ -3,6 +3,7 @@ set -euo pipefail
 source "$HOME/.local/bin/sunshine-vdisplay-common"
 exec 9>"$lock_file"
 flock -x 9
+stop_touchscreen_binding
 stop_inhibitor
 for attempt in {1..30}; do
     data="$(kscreen-doctor -j 2>/dev/null || true)"
