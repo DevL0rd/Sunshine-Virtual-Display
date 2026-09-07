@@ -5,6 +5,8 @@ import re
 import struct
 from fractions import Fraction
 
+MAX_EDID_BYTES = 2048
+
 
 def timing(width, height, refresh):
     hblank, hfront, hsync = 160, 48, 32
@@ -278,7 +280,10 @@ def build(modes, name):
     ordered.insert(0, native)
     extensions = displayid_extensions(ordered, native)
     blocks = [base_block(base_mode(modes), name, len(extensions)), *extensions]
-    return b"".join(blocks)
+    data = b"".join(blocks)
+    if len(data) > MAX_EDID_BYTES:
+        raise ValueError(f"EDID exceeds NVIDIA's {MAX_EDID_BYTES}-byte limit")
+    return data
 
 
 def main():

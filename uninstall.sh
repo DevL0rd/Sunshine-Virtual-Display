@@ -102,7 +102,7 @@ rm -f "$target_home/.local/bin/sunshine-vdisplay-reset"
 rm -f "$target_home/.local/bin/sunshine-vdisplay-up"
 rm -f "$target_home/.config/sunshine-virtual-display/config" "$target_home/.config/sunshine-virtual-display/modes.txt"
 rmdir "$target_home/.config/sunshine-virtual-display" 2>/dev/null || true
-rm -f "$state_dir/pending-modes.txt" "$state_dir/pending-modes.lock" "$state_dir/reboot-required" "$state_dir/events.log"
+rm -f "$state_dir/pending-modes.txt" "$state_dir/pending-modes.lock" "$state_dir/learned-modes.txt" "$state_dir/reboot-required" "$state_dir/events.log"
 sudo systemctl disable --now sunshine-vdisplay-edid.path >/dev/null 2>&1 || true
 sudo rm -f /etc/systemd/system/sunshine-vdisplay-edid.path
 sudo rm -f /etc/systemd/system/sunshine-vdisplay-edid.service

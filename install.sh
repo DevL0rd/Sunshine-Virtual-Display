@@ -118,9 +118,18 @@ existing_install=0
 if [[ -e /usr/local/lib/sunshine-virtual-display/rebuild-edid || -e "$target_home/.local/bin/sunshine-vdisplay-up" ]]; then
     existing_install=1
 fi
+learned_modes="$state_dir/learned-modes.txt"
+if [[ -r "$learned_modes" ]]; then
+    cat "$learned_modes" > "$work_dir/observed-modes.txt"
+elif [[ -r "$state_dir/events.log" ]]; then
+    sed -nE 's/.*request=([0-9]{3,4}x[0-9]{3,4}@[0-9]{2,3}([.][0-9]+)?).*/\1/p' "$state_dir/events.log" > "$work_dir/observed-modes.txt"
+else
+    : > "$work_dir/observed-modes.txt"
+fi
+awk 'NR == FNR { defaults[$0] = 1; next } NF && !defaults[$0] && !seen[$0]++' "$repo_dir/config/modes.txt" "$work_dir/observed-modes.txt" > "$work_dir/learned-modes.txt"
 {
     cat "$repo_dir/config/modes.txt"
-    [[ -r /etc/sunshine-virtual-display/modes.txt ]] && cat /etc/sunshine-virtual-display/modes.txt
+    cat "$work_dir/learned-modes.txt"
 } | awk 'NF && !seen[$0]++' > "$work_dir/modes.txt"
 python3 "$repo_dir/src/system/generate-edid.py" "$work_dir/modes.txt" "$work_dir/sunshine-virtual-display.bin"
 edid-decode --check "$work_dir/sunshine-virtual-display.bin" > "$work_dir/edid-check.txt"
@@ -130,8 +139,9 @@ install -m 755 "$repo_dir"/src/user/sunshine-vdisplay-* "$target_home/.local/bin
 printf 'VIRTUAL_OUTPUT=%q\nSTATE_DIR=%q\nSUNSHINE_SERVICE=%q\n' "$requested_output" "$state_dir" "$sunshine_service" > "$work_dir/user-config"
 install -m 600 "$work_dir/user-config" "$target_home/.config/sunshine-virtual-display/config"
 install -m 600 "$work_dir/modes.txt" "$target_home/.config/sunshine-virtual-display/modes.txt"
+install -m 600 "$work_dir/learned-modes.txt" "$learned_modes"
 touch "$state_dir/pending-modes.txt" "$state_dir/pending-modes.lock"
-chmod 600 "$state_dir/pending-modes.txt" "$state_dir/pending-modes.lock"
+chmod 600 "$learned_modes" "$state_dir/pending-modes.txt" "$state_dir/pending-modes.lock"
 adopt=()
 if ((existing_install)) && [[ ! -e "$original_sunshine" ]]; then
     adopt+=(--adopt-existing)

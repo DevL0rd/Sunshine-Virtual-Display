@@ -7,9 +7,10 @@ work_dir=/var/lib/sunshine-virtual-display
 firmware=/usr/lib/firmware/edid/sunshine-virtual-display.bin
 pending="$state_dir/pending-modes.txt"
 pending_lock="$state_dir/pending-modes.lock"
+learned="$state_dir/learned-modes.txt"
 install -d -m 755 "$work_dir" /usr/lib/firmware/edid
-touch "$pending" "$pending_lock"
-chown "$TARGET_USER:$TARGET_GROUP" "$pending" "$pending_lock"
+touch "$pending" "$pending_lock" "$learned"
+chown "$TARGET_USER:$TARGET_GROUP" "$pending" "$pending_lock" "$learned"
 exec 8>"$pending_lock"
 flock -x 8
 mapfile -t additions < <(sed -nE '/^[0-9]{3,4}x[0-9]{3,4}@[0-9]{2,3}([.][0-9]+)?$/p' "$pending" | sort -u)
@@ -17,14 +18,17 @@ if ((${#additions[@]} == 0)); then
     exit 0
 fi
 combined="$work_dir/modes.txt"
+learned_combined="$work_dir/learned-modes.txt"
 temporary="$work_dir/sunshine-virtual-display.bin.new"
 { cat "$config_dir/modes.txt"; printf '%s\n' "${additions[@]}"; } | awk 'NF && !seen[$0]++' > "$combined"
+{ cat "$learned"; printf '%s\n' "${additions[@]}"; } | awk 'NF && !seen[$0]++' > "$learned_combined"
 /usr/local/lib/sunshine-virtual-display/generate-edid.py "$combined" "$temporary"
 edid-decode --check "$temporary" > "$work_dir/edid-decode.txt"
 install -m 644 "$combined" "$config_dir/modes.txt"
 install -m 644 "$temporary" "$firmware"
+install -m 600 "$learned_combined" "$learned"
 : > "$pending"
-chown "$TARGET_USER:$TARGET_GROUP" "$pending"
+chown "$TARGET_USER:$TARGET_GROUP" "$pending" "$learned"
 flock -u 8
 if command -v limine-mkinitcpio >/dev/null 2>&1; then
     limine-mkinitcpio
