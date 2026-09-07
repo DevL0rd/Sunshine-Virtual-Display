@@ -3,9 +3,7 @@ import argparse
 import math
 import re
 import struct
-import sys
-
-VICS = [97, 118, 117, 96, 95, 63, 64, 16, 4, 1]
+from fractions import Fraction
 
 
 def timing(width, height, refresh):
@@ -61,6 +59,45 @@ def descriptor(value):
     return bytes(data)
 
 
+def aspect_code(width, height):
+    ratio = Fraction(width, height)
+    ratios = {
+        Fraction(1, 1): 0,
+        Fraction(5, 4): 1,
+        Fraction(4, 3): 2,
+        Fraction(15, 9): 3,
+        Fraction(16, 9): 4,
+        Fraction(16, 10): 5,
+        Fraction(64, 27): 6,
+        Fraction(256, 135): 7,
+    }
+    return ratios.get(ratio, 8)
+
+
+def displayid_descriptor(value, preferred=False):
+    clock = value["clock"] // 10 - 1
+    if not 0 <= clock <= 0xFFFFFF:
+        raise ValueError("pixel clock exceeds DisplayID Type I limit")
+    flags = aspect_code(value["width"], value["height"])
+    if preferred:
+        flags |= 0x80
+    hsync = value["hfront"] - 1 | 0x8000
+    vsync = value["vfront"] - 1
+    return struct.pack(
+        "<3sBHHHHHHHH",
+        clock.to_bytes(3, "little"),
+        flags,
+        value["width"] - 1,
+        value["hblank"] - 1,
+        hsync,
+        value["hsync"] - 1,
+        value["height"] - 1,
+        value["vblank"] - 1,
+        vsync,
+        value["vsync"] - 1,
+    )
+
+
 def name_descriptor(name):
     data = bytearray(18)
     data[3] = 252
@@ -84,6 +121,15 @@ def range_descriptor():
     return bytes(data)
 
 
+def serial_descriptor():
+    data = bytearray(18)
+    data[3] = 255
+    data[5:15] = b"VIRTUAL001"
+    data[15] = 10
+    data[16:18] = b" " * 2
+    return bytes(data)
+
+
 def checksum(block):
     return (-sum(block[:-1])) & 255
 
@@ -102,89 +148,136 @@ def parse_modes(path):
                 raise ValueError(f"invalid mode: {line}")
             width, height = int(match.group(1)), int(match.group(2))
             refresh = float(match.group(3))
-            if not 320 <= width <= 4095 or not 320 <= height <= 4095 or not 24 <= refresh <= 240:
+            if not (
+                320 <= width <= 4095
+                and 320 <= height <= 4095
+                and 24 <= refresh <= 240
+            ):
                 raise ValueError(f"mode outside allowed range: {line}")
             key = width, height, round(refresh, 3)
             if key in seen:
                 continue
             seen.add(key)
             value = timing(width, height, refresh)
-            if value["clock"] // 10 > 65535:
-                raise ValueError(f"mode exceeds EDID DTD pixel clock limit: {line}")
             values.append(value)
-    if len(values) < 2:
-        raise ValueError("at least two encodable modes are required")
+    if not values:
+        raise ValueError("at least one mode is required")
     return values
 
 
-def base_block(modes, name, extensions):
+def base_block(mode, name, extensions):
     block = bytearray(128)
     block[:8] = b"\x00\xff\xff\xff\xff\xff\xff\x00"
     block[8:10] = b"Pt"
     block[10:12] = struct.pack("<H", 1)
-    block[12:16] = struct.pack("<I", 1)
+    block[12:16] = struct.pack("<I", 0)
     block[16:20] = bytes([1, 36, 1, 4])
     block[20:25] = bytes([165, 60, 34, 120, 6])
     block[25:35] = bytes([238, 145, 163, 84, 76, 153, 38, 15, 80, 84])
     block[35] = 32
     for index in range(8):
         block[38 + index * 2:40 + index * 2] = b"\x01\x01"
-    block[54:72] = descriptor(modes[0])
-    block[72:90] = descriptor(modes[1])
-    block[90:108] = range_descriptor()
-    block[108:126] = name_descriptor(name)
+    block[54:72] = descriptor(mode)
+    block[72:90] = range_descriptor()
+    block[90:108] = name_descriptor(name)
+    block[108:126] = serial_descriptor()
     block[126] = extensions
     block[127] = checksum(block)
     return block
 
 
-def primary_extension(modes):
-    block = bytearray(128)
-    block[0:2] = b"\x02\x03"
-    position = 4
-    block[position] = 64 | len(VICS)
-    block[position + 1:position + 1 + len(VICS)] = bytes(VICS)
-    position += 1 + len(VICS)
-    block[position:position + 4] = bytes([35, 23, 127, 7])
-    position += 4
-    block[position:position + 4] = bytes([131, 1, 0, 0])
-    position += 4
-    block[position:position + 3] = bytes([226, 0, 79])
-    position += 3
-    block[2] = position
-    block[3] = 192
-    used = 0
-    while used < len(modes) and position + 18 <= 127:
-        block[position:position + 18] = descriptor(modes[used])
-        position += 18
-        used += 1
-    block[127] = checksum(block)
-    return block, used
+def displayid_product_block():
+    payload = b"VRT" + struct.pack("<HI", 1, 1) + bytes([1, 26, 0])
+    return bytes([0, 0, len(payload)]) + payload
 
 
-def extra_extension(modes):
+def displayid_parameters_block(native):
+    payload = struct.pack(
+        "<HHHHBBBB",
+        6000,
+        3400,
+        native["width"],
+        native["height"],
+        0,
+        120,
+        60,
+        0x77,
+    )
+    return bytes([1, 0, len(payload)]) + payload
+
+
+def displayid_interface_block():
+    payload = bytes([0xA1, 0x14, 0x02, 0, 0, 0, 0, 0, 0, 0])
+    return bytes([0x0F, 0, len(payload)]) + payload
+
+
+def displayid_extension(payload, product_type, extension_count):
     block = bytearray(128)
-    block[:4] = bytes([2, 3, 4, 192])
-    position = 4
-    used = 0
-    while used < len(modes) and position + 18 <= 127:
-        block[position:position + 18] = descriptor(modes[used])
-        position += 18
-        used += 1
+    block[:5] = bytes([0x70, 0x13, len(payload), product_type, extension_count])
+    block[5:5 + len(payload)] = payload
+    displayid_checksum = 5 + len(payload)
+    block[displayid_checksum] = (-sum(block[1:displayid_checksum])) & 255
     block[127] = checksum(block)
-    return block, used
+    return block
+
+
+def displayid_extensions(modes, native):
+    groups = []
+    remaining = list(modes)
+    while remaining:
+        capacity = 3 if not groups else 5
+        groups.append(remaining[:capacity])
+        remaining = remaining[capacity:]
+    blocks = []
+    for index, group in enumerate(groups):
+        timings = b"".join(
+            displayid_descriptor(value, preferred=index == 0 and item == 0)
+            for item, value in enumerate(group)
+        )
+        timing_block = bytes([3, 1, len(timings)]) + timings
+        prefix = b""
+        if index == 0:
+            prefix = (
+                displayid_product_block()
+                + displayid_parameters_block(native)
+                + displayid_interface_block()
+            )
+        blocks.append(
+            displayid_extension(
+                prefix + timing_block,
+                3 if index == 0 else 0,
+                len(groups) - 1 if index == 0 else 0,
+            )
+        )
+    return blocks
+
+
+def base_mode(modes):
+    preferred = next(
+        (
+            value
+            for value in modes
+            if value["width"] == 1920
+            and value["height"] == 1080
+            and abs(value["refresh"] - 60) < 0.01
+        ),
+        None,
+    )
+    if preferred is not None:
+        return preferred
+    fallback = next((value for value in modes if value["clock"] // 10 <= 65535), None)
+    if fallback is None:
+        raise ValueError("at least one mode must fit the EDID base timing")
+    return fallback
 
 
 def build(modes, name):
-    remaining = modes[2:]
-    primary, used = primary_extension(remaining)
-    remaining = remaining[used:]
-    extensions = [primary]
-    while remaining:
-        block, used = extra_extension(remaining)
-        extensions.append(block)
-        remaining = remaining[used:]
-    blocks = [base_block(modes, name, len(extensions)), *extensions]
+    native = max(modes, key=lambda value: value["clock"])
+    ordered = list(modes)
+    ordered.remove(native)
+    ordered.insert(0, native)
+    extensions = displayid_extensions(ordered, native)
+    blocks = [base_block(base_mode(modes), name, len(extensions)), *extensions]
     return b"".join(blocks)
 
 
@@ -201,7 +294,7 @@ def main():
     for index in range(len(data) // 128):
         if sum(data[index * 128:(index + 1) * 128]) & 255:
             raise RuntimeError(f"checksum failure in block {index}")
-    print(f"wrote {len(data)} bytes with {len(modes)} DTD modes and {len(VICS)} CTA modes")
+    print(f"wrote {len(data)} bytes with {len(modes)} DisplayID modes")
 
 
 if __name__ == "__main__":
