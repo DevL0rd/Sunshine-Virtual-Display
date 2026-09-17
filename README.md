@@ -40,8 +40,8 @@ The installer adds missing runtime packages from the normal repositories: `pytho
 Run the installer as the desktop user:
 
 ```bash
-git clone https://github.com/DevL0rd/Linux-Sunshine-Virtual-Display.git
-cd Linux-Sunshine-Virtual-Display
+git clone https://github.com/DevL0rd/Sunshine-Virtual-Display.git
+cd Sunshine-Virtual-Display
 ./install.sh
 ```
 
