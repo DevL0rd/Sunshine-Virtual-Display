@@ -44,7 +44,8 @@ if [[ "$match" != EXACT ]]; then
     flock -u 8
 fi
 start_inhibitor
-kscreen-doctor "output.$VIRTUAL_OUTPUT.enable" "output.$VIRTUAL_OUTPUT.mode.$mode_id" "output.$VIRTUAL_OUTPUT.priority.1" "output.$VIRTUAL_OUTPUT.position.0,0"
+virtual_x="$(jq -r --arg virtual "$VIRTUAL_OUTPUT" '[.outputs[] | select(.connected == true and .enabled == true and .name != $virtual) | .pos.x + ((if .rotation == 2 or .rotation == 8 then .size.height else .size.width end) / .scale | ceil)] | max // 0' "$layout_file")"
+kscreen-doctor "output.$VIRTUAL_OUTPUT.enable" "output.$VIRTUAL_OUTPUT.mode.$mode_id" "output.$VIRTUAL_OUTPUT.priority.1" "output.$VIRTUAL_OUTPUT.position.$virtual_x,0"
 mapfile -t physical_outputs < <(jq -r --arg virtual "$VIRTUAL_OUTPUT" '.outputs[] | select(.connected == true and .enabled == true and .name != $virtual) | .name' "$layout_file")
 for output in "${physical_outputs[@]}"; do
     kscreen-doctor "output.$output.disable"
